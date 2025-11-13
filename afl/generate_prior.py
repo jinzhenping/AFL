@@ -49,20 +49,38 @@ def generate_prior_recommendations(args):
     seq_size = 50  # Default sequence size for MIND
     
     # Load model
-    model = SASRec(64, item_num, seq_size, 0.1, device)
-    model.to(device)
-    
-    # Load model weights (could be full model or state_dict)
+    # Try to load as full model first (common case)
     loaded = torch.load(args.model_path, map_location=device, weights_only=False)
-    if isinstance(loaded, dict):
-        # If it's a state_dict, load it into the model
-        if 'state_dict' in loaded:
-            model.load_state_dict(loaded['state_dict'])
-        else:
-            model.load_state_dict(loaded)
-    else:
-        # If it's a full model object, use it directly
+    
+    # Check if it's a full model object (has forward method)
+    if hasattr(loaded, 'forward') or hasattr(loaded, 'forward_eval'):
+        # It's a full model object
         model = loaded
+        model.to(device)
+        print("Loaded as full model object")
+    elif isinstance(loaded, dict):
+        # It's a state_dict, try to load into new model
+        model = SASRec(64, item_num, seq_size, 0.1, device)
+        model.to(device)
+        
+        if 'state_dict' in loaded:
+            state_dict = loaded['state_dict']
+        else:
+            state_dict = loaded
+        
+        # Try loading with strict=False first (in case of minor mismatches)
+        try:
+            model.load_state_dict(state_dict, strict=True)
+        except RuntimeError:
+            print("Warning: Strict loading failed, trying with strict=False...")
+            try:
+                model.load_state_dict(state_dict, strict=False)
+                print("Loaded with strict=False (some keys may be missing)")
+            except Exception as e:
+                print(f"Error loading state_dict: {e}")
+                raise
+    else:
+        raise ValueError(f"Unknown model format loaded from {args.model_path}")
     
     model.eval()
     print("Model loaded successfully")
