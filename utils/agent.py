@@ -193,7 +193,19 @@ class UserModelAgent:
         
         self.model = SASRec(64, self.item_num, self.seq_size, 0.1, self.device)
         self.model.to(self.device)
-        self.model = torch.load(model_path, map_location=self.device, weights_only=False)
+        
+        # Load model weights (could be full model or state_dict)
+        loaded = torch.load(model_path, map_location=self.device, weights_only=False)
+        if isinstance(loaded, dict):
+            # If it's a state_dict, load it into the model
+            if 'state_dict' in loaded:
+                self.model.load_state_dict(loaded['state_dict'])
+            else:
+                self.model.load_state_dict(loaded)
+        else:
+            # If it's a full model object, use it directly
+            self.model = loaded
+        
         print("load model success")
     
     def load_prompt(self):
