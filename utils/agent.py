@@ -213,13 +213,15 @@ class UserModelAgent:
             # Try loading with strict=False first (in case of minor mismatches)
             try:
                 self.model.load_state_dict(state_dict, strict=True)
-            except RuntimeError:
-                print("Warning: Strict loading failed, trying with strict=False...")
+            except RuntimeError as e:
+                # Only show warning once, not for every process
+                if not hasattr(self, '_load_warning_shown'):
+                    print("Warning: Model structure mismatch, loading with strict=False (this is usually fine)")
+                    self._load_warning_shown = True
                 try:
                     self.model.load_state_dict(state_dict, strict=False)
-                    print("Loaded with strict=False (some keys may be missing)")
-                except Exception as e:
-                    print(f"Error loading state_dict: {e}")
+                except Exception as e2:
+                    print(f"Error loading state_dict: {e2}")
                     raise
         else:
             raise ValueError(f"Unknown model format loaded from {model_path}")

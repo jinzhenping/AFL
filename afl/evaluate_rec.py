@@ -55,11 +55,24 @@ def recommend(data, args):
     new_data_list = []
     while flag == False and epoch <= args.max_epoch:
         #rec agent
-        while True:
+        retry_count = 0
+        max_retries = 10
+        while retry_count < max_retries:
             rec_agent_response = rec_agent.act(data)
+            if rec_agent_response is None:
+                retry_count += 1
+                print(f"[WARNING] RecAgent API returned None for data id {data['id']}, retry {retry_count}/{max_retries}")
+                if retry_count >= max_retries:
+                    print(f"[ERROR] RecAgent failed after {max_retries} retries for data id {data['id']}")
+                    return new_data_list, 0, args
+                continue
             rec_reason, rec_item = split_rec_reponse(rec_agent_response)
             if rec_item is not None:
                 break
+            retry_count += 1
+            if retry_count >= max_retries:
+                print(f"[ERROR] Failed to parse rec_item after {max_retries} retries for data id {data['id']}")
+                return new_data_list, 0, args
         if args.max_epoch == 1:
             new_data = {'id':data['id'],'seq_name':data['seq_name'], 'cans_name':data['cans_name'], 'correct_answer':data['correct_answer'], 'epoch':epoch, 'rec_res':rec_agent_response, 'user_res':None,'prior_answer':data['prior_answer']}
             new_data_list.append(new_data)
@@ -70,10 +83,27 @@ def recommend(data, args):
             break
         
         #user agent
-        while True:
+        retry_count = 0
+        max_retries = 10
+        while retry_count < max_retries:
             user_agent_response = user_agent.act(data,rec_reason, rec_item)
+            if user_agent_response is None:
+                retry_count += 1
+                print(f"[WARNING] UserAgent API returned None for data id {data['id']}, retry {retry_count}/{max_retries}")
+                if retry_count >= max_retries:
+                    print(f"[ERROR] UserAgent failed after {max_retries} retries for data id {data['id']}")
+                    flag = False  # Assume rejection
+                    user_reason = "API request failed"
+                    break
+                continue
             user_reason, flag  = split_user_response(user_agent_response)
             if flag is not None:
+                break
+            retry_count += 1
+            if retry_count >= max_retries:
+                print(f"[ERROR] Failed to parse user response after {max_retries} retries for data id {data['id']}")
+                flag = False  # Assume rejection
+                user_reason = "Failed to parse response"
                 break
 
         # save
@@ -135,9 +165,10 @@ def main(args):
         raise ValueError(f"Unsupported dataset: {args.data_dir}")
     global total
     data_list = []
-    print("data size = ", total)
+    print("Loading dataset...")
     for data in tqdm(dataset):
         data_list.append(data)
+    print(f"Loaded {len(data_list)} samples from dataset")
     import pandas as pd
     prior_df = pd.read_csv(args.prior_file)
     prior_list = prior_df.to_dict('records')
@@ -146,17 +177,30 @@ def main(args):
         prior_dict[data['id']] = data
 
     merge_data_list = []
+    print("Merging with prior data...")
     for data in data_list:
+        if data['id'] not in prior_dict:
+            print(f"[WARNING] Data id {data['id']} not found in prior_file, skipping...")
+            continue
         generate = prior_dict[data['id']]['generate']
         merge_data = data.copy()
         merge_data['prior_answer'] = generate
         merge_data_list.append(merge_data)
+    
+    print(f"Total samples to process: {len(merge_data_list)}")
+    if len(merge_data_list) == 0:
+        print("[ERROR] No data to process after merging with prior_file")
+        return
+    
     pool = multiprocessing.Pool(args.mp)
     total = len(merge_data_list)
-    for data in tqdm(merge_data_list):
-        pool.apply_async(func=recommend, args=(data, args), callback=setcallback)
+    print(f"Starting evaluation with {args.mp} processes...")
+    for data in tqdm(merge_data_list, desc="Submitting tasks"):
+        pool.apply_async(func=recommend, args=(data, args), callback=setcallback, error_callback=lambda e: print(f"[ERROR] Task failed: {e}"))
     pool.close()
+    print("Waiting for all tasks to complete...")
     pool.join()
+    print("All tasks completed!")
 
 if __name__ == '__main__':
     args = get_args()
