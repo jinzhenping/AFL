@@ -23,6 +23,12 @@ OUTPUT_FILE="./data/lastfm_rec_eval/${P_MODEL}_${LABEL}_${MODEL}_${SEED}_${TEMPE
 SAVE_REC_DIR="./data/lastfm_rec_save/rec_${P_MODEL}_${LABEL}_${MODEL}_${MAX_EPOCH}"
 SAVE_USER_DIR="./data/lastfm_rec_save/user_${P_MODEL}_${LABEL}_${MODEL}_${MAX_EPOCH}"
 
+# OUTPUT_FILE이 비어있는지 확인
+if [ -z "$OUTPUT_FILE" ]; then
+    echo "Error: OUTPUT_FILE is empty. Please check the variable expansion."
+    exit 1
+fi
+
 echo "DATA_DIR = ${DATA_DIR}"
 echo "MODEL_PATH = ${MODEL_PATH}"
 echo "PRIOR_FILE = ${PRIOR_FILE}"
