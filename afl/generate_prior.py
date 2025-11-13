@@ -51,7 +51,7 @@ def generate_prior_recommendations(args):
     # Load model
     model = SASRec(64, item_num, seq_size, 0.1, device)
     model.to(device)
-    model = torch.load(args.model_path, map_location=device)
+    model = torch.load(args.model_path, map_location=device, weights_only=False)
     model.eval()
     print("Model loaded successfully")
     

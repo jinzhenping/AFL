@@ -193,7 +193,7 @@ class UserModelAgent:
         
         self.model = SASRec(64, self.item_num, self.seq_size, 0.1, self.device)
         self.model.to(self.device)
-        self.model = torch.load(model_path, map_location=self.device)
+        self.model = torch.load(model_path, map_location=self.device, weights_only=False)
         print("load model success")
     
     def load_prompt(self):
