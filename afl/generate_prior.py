@@ -104,7 +104,9 @@ def generate_prior_recommendations(args):
             
             # Generate prediction using SASRec model
             seq_b = [seq]
-            len_seq_b = [len_seq]
+            # Ensure len_seq doesn't exceed the padded sequence length
+            actual_seq_len = min(len_seq, len(seq))
+            len_seq_b = [actual_seq_len]
             states = np.array(seq_b)
             states = torch.LongTensor(states)
             states = states.to(device)

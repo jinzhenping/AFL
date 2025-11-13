@@ -6,7 +6,9 @@ import torch.nn.functional as F
 def extract_axis_1(data, indices):
     res = []
     for i in range(data.shape[0]):
-        res.append(data[i, indices[i], :])
+        # Ensure index is within bounds
+        idx = min(int(indices[i]), data.shape[1] - 1)
+        res.append(data[i, idx, :])
     res = torch.stack(res, dim=0).unsqueeze(1)
     return res
 
