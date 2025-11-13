@@ -78,7 +78,18 @@ class UserModelAgent:
         self.info_list = []
         self.args = args
         self.mode = mode
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        # Set device based on gpu argument or default
+        if args.gpu is not None:
+            if torch.cuda.is_available() and args.gpu < torch.cuda.device_count():
+                self.device = torch.device(f"cuda:{args.gpu}")
+            else:
+                if not torch.cuda.is_available():
+                    print(f"Warning: CUDA not available, using CPU instead of GPU {args.gpu}")
+                else:
+                    print(f"Warning: GPU {args.gpu} not available (only {torch.cuda.device_count()} GPUs), using default CUDA device")
+                self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        else:
+            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.load_prompt()
         self.load_model()
         self.id2name = dict()

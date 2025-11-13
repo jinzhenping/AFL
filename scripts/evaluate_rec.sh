@@ -1,6 +1,9 @@
 work_dir=''
 cd $work_dir
 
+# GPU 설정 (0 또는 1 등 원하는 GPU 번호 지정)
+GPU_ID=0
+
 DATA_DIR="./data/lastfm/"
 STAGE="test"
 CANS_NUM=20
@@ -32,11 +35,12 @@ echo "MAX_RETRY_NUM = ${MAX_RETRY_NUM}"
 echo "SEED = ${SEED}"
 echo "TEMPERATURE = ${TEMPERATURE}"
 echo "MP = ${MP}"
+echo "GPU_ID = ${GPU_ID}"
 echo "OUTPUT_FILE = ${OUTPUT_FILE}"
 echo "SAVE_REC_DIR = ${SAVE_REC_DIR}"
 echo "SAVE_USER_DIR = ${SAVE_USER_DIR}"
 
-CUDA_VISIBLE_DEVICES=0 python ./afl/evaluate_rec.py \
+CUDA_VISIBLE_DEVICES=${GPU_ID} python ./afl/evaluate_rec.py \
     --data_dir=$DATA_DIR \
     --model_path=$MODEL_PATH \
     --prior_file=$PRIOR_FILE \
@@ -50,6 +54,7 @@ CUDA_VISIBLE_DEVICES=0 python ./afl/evaluate_rec.py \
     --seed=$SEED \
     --mp=$MP \
     --temperature=$TEMPERATURE \
+    --gpu=$GPU_ID \
     --save_info \
     --save_rec_dir=$SAVE_REC_DIR \
     --save_user_dir=$SAVE_USER_DIR

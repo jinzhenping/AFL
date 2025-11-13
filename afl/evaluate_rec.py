@@ -42,6 +42,7 @@ def get_args():
     parser.add_argument("--save_info",action="store_true")
     parser.add_argument("--save_rec_dir", type=str, default=None)
     parser.add_argument("--save_user_dir", type=str, default=None)
+    parser.add_argument("--gpu", type=int, default=None, help='GPU device ID to use (e.g., 0 or 1). If not specified, uses CUDA_VISIBLE_DEVICES or default cuda device.')
     return parser.parse_args()
 
 def recommend(data, args):
