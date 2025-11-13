@@ -3,7 +3,7 @@ import time
 
 def api_request(system_prompt, user_prompt, args, few_shot=None):
     if "gpt" in args.model:
-        return gpt_api(system_prompt, user_prompt, args, few_shot)
+        return gpt_api(system_prompt, user_prompt, args)
     else:
         raise ValueError(f"Unsupported model: {args.model}") 
 
