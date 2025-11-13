@@ -157,8 +157,11 @@ class MindDataset(data.Dataset):
                     })
         
         df = pd.DataFrame(data_list)
+        
         # Filter out users with too short history (at least 3 clicks)
-        df = df[df['click_history'].apply(lambda x: len(x.split()) if isinstance(x, str) else len(x) >= 3)]
+        # Create a boolean mask
+        mask = df['click_history'].apply(lambda x: len(x.split()) >= 3 if isinstance(x, str) else len(x) >= 3)
+        df = df[mask].reset_index(drop=True)
         
         return df
 
