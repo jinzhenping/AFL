@@ -32,7 +32,7 @@ def get_args():
     parser.add_argument('--cans_num', type=int, default=20)
     parser.add_argument('--sep', type=str, default=', ')
     parser.add_argument('--max_epoch', type=int, default=1)
-    parser.add_argument('--output_file', type=str)
+    parser.add_argument('--output_file', type=str, required=True, help='Output file path for evaluation results (JSONL format)')
     parser.add_argument('--model', type=str, default='')
     parser.add_argument('--api_key', type=str)
     parser.add_argument('--max_retry_num', type=int, default=5)
@@ -118,6 +118,9 @@ def setcallback(x):
     print("==============")
 
 def main(args):
+    if args.output_file is None:
+        raise ValueError("--output_file is required. Please specify the output file path.")
+    
     if args.save_info and args.save_rec_dir is not None and not os.path.exists(args.save_rec_dir):
         os.makedirs(args.save_rec_dir)
     if args.save_info and args.save_user_dir is not None and not os.path.exists(args.save_user_dir):
