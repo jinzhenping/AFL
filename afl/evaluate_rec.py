@@ -170,7 +170,11 @@ def main(args):
         data_list.append(data)
     print(f"Loaded {len(data_list)} samples from dataset")
     import pandas as pd
+    print(f"Loading prior file: {args.prior_file}")
     prior_df = pd.read_csv(args.prior_file)
+    print(f"Prior file columns: {prior_df.columns.tolist()}")
+    print(f"Prior file shape: {prior_df.shape}")
+    
     prior_list = prior_df.to_dict('records')
     prior_dict = {}
     for data in prior_list:
@@ -182,7 +186,11 @@ def main(args):
         if data['id'] not in prior_dict:
             print(f"[WARNING] Data id {data['id']} not found in prior_file, skipping...")
             continue
-        generate = prior_dict[data['id']]['generate']
+        prior_entry = prior_dict[data['id']]
+        if 'generate' not in prior_entry:
+            print(f"[ERROR] 'generate' key not found in prior_file for id {data['id']}. Available keys: {prior_entry.keys()}")
+            continue
+        generate = prior_entry['generate']
         merge_data = data.copy()
         merge_data['prior_answer'] = generate
         merge_data_list.append(merge_data)
@@ -195,8 +203,16 @@ def main(args):
     pool = multiprocessing.Pool(args.mp)
     total = len(merge_data_list)
     print(f"Starting evaluation with {args.mp} processes...")
+    
+    def error_callback(e):
+        import traceback
+        print(f"[ERROR] Task failed with exception:")
+        print(f"  Type: {type(e).__name__}")
+        print(f"  Message: {str(e)}")
+        traceback.print_exc()
+    
     for data in tqdm(merge_data_list, desc="Submitting tasks"):
-        pool.apply_async(func=recommend, args=(data, args), callback=setcallback, error_callback=lambda e: print(f"[ERROR] Task failed: {e}"))
+        pool.apply_async(func=recommend, args=(data, args), callback=setcallback, error_callback=error_callback)
     pool.close()
     print("Waiting for all tasks to complete...")
     pool.join()

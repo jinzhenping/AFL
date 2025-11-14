@@ -30,20 +30,38 @@ def gpt_api(system_prompt, user_prompt, args):
     while max_retry_num >= 0:
         request_result = None
         try:
-            request_result = requests.post(url, headers=headers, json=payload)
+            request_result = requests.post(url, headers=headers, json=payload, timeout=30)
             result_json = request_result.json()
             if 'error' not in result_json: 
                 model_output = result_json['choices'][0]['message']['content']
                 return model_output.strip()
             else:
+                error_msg = result_json.get('error', {}).get('message', 'Unknown error')
+                error_type = result_json.get('error', {}).get('type', 'Unknown')
+                print(f"[API ERROR] {error_type}: {error_msg}")
                 max_retry_num -= 1
-        except:
-            if request_result is not None:
-                print("[warning]request_result = ", request_result.json())
-                time.sleep(2)
-            else:
-                print("[warning]request_result = NULL")
+                if max_retry_num >= 0:
+                    time.sleep(2)
+        except requests.exceptions.Timeout:
+            print(f"[API WARNING] Request timeout, retries left: {max_retry_num}")
             max_retry_num -= 1
+            if max_retry_num >= 0:
+                time.sleep(2)
+        except requests.exceptions.RequestException as e:
+            print(f"[API WARNING] Request exception: {e}, retries left: {max_retry_num}")
+            max_retry_num -= 1
+            if max_retry_num >= 0:
+                time.sleep(2)
+        except Exception as e:
+            print(f"[API WARNING] Unexpected error: {e}, retries left: {max_retry_num}")
+            if request_result is not None:
+                try:
+                    print(f"[API WARNING] Response: {request_result.json()}")
+                except:
+                    print(f"[API WARNING] Response status: {request_result.status_code}")
+            max_retry_num -= 1
+            if max_retry_num >= 0:
+                time.sleep(2)
     return None
 
 
