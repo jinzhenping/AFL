@@ -46,9 +46,16 @@ class RecAgent:
 
     def act(self, data, reason=None, item=None):
         if self.mode =='prior_rec':
+            # Ensure prior_answer is a string
+            prior_answer = data.get('prior_answer', '')
+            if isinstance(prior_answer, dict):
+                prior_answer = str(prior_answer)
+            elif not isinstance(prior_answer, str):
+                prior_answer = str(prior_answer) if prior_answer is not None else ''
+            
             if len(self.memory) == 0:
                 system_prompt = self.rec_system_prompt
-                user_prompt = self.rec_user_prompt.format(data['seq_str'], data['len_cans'],data['cans_str'], data['prior_answer'])
+                user_prompt = self.rec_user_prompt.format(data['seq_str'], data['len_cans'],data['cans_str'], prior_answer)
             else:
                 system_prompt = self.rec_memory_system_prompt
                 user_prompt = self.rec_memory_user_prompt.format(data['seq_str'],data['len_cans'], data['cans_str'], '\n'.join(self.memory))
@@ -271,10 +278,18 @@ class UserModelAgent:
     def act(self, data, reason=None, item=None):
         if self.mode == 'prior_rec':
             model_output = self.model_generate(data['seq'], data['len_seq'], data['cans'])
+            
+            # Ensure prior_answer is a string
+            prior_answer = data.get('prior_answer', '')
+            if isinstance(prior_answer, dict):
+                prior_answer = str(prior_answer)
+            elif not isinstance(prior_answer, str):
+                prior_answer = str(prior_answer) if prior_answer is not None else ''
+            
             if len(self.memory) == 0:
-                system_prompt = self.user_system_promt.format(data['seq_str'], data['prior_answer'])
+                system_prompt = self.user_system_promt.format(data['seq_str'], prior_answer)
             else:
-                system_prompt = self.user_system_promt.format(data['seq_str'], data['prior_answer'])
+                system_prompt = self.user_system_promt.format(data['seq_str'], prior_answer)
             user_prompt = self.user_user_prompt.format(data['cans_str'],model_output, item, reason)
             response = api_request(system_prompt, user_prompt, self.args)
             return response

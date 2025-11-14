@@ -175,6 +175,12 @@ def main(args):
     print(f"Prior file columns: {prior_df.columns.tolist()}")
     print(f"Prior file shape: {prior_df.shape}")
     
+    # Debug: Check first few rows
+    if len(prior_df) > 0:
+        print(f"First row sample: {prior_df.iloc[0].to_dict()}")
+        print(f"First 'generate' value type: {type(prior_df.iloc[0]['generate'])}")
+        print(f"First 'generate' value: {prior_df.iloc[0]['generate']}")
+    
     prior_list = prior_df.to_dict('records')
     prior_dict = {}
     for data in prior_list:
@@ -191,6 +197,12 @@ def main(args):
             print(f"[ERROR] 'generate' key not found in prior_file for id {data['id']}. Available keys: {prior_entry.keys()}")
             continue
         generate = prior_entry['generate']
+        # Ensure generate is a string, not a dict or other type
+        if isinstance(generate, dict):
+            print(f"[WARNING] 'generate' is a dict for id {data['id']}, converting to string")
+            generate = str(generate)
+        elif not isinstance(generate, str):
+            generate = str(generate)
         merge_data = data.copy()
         merge_data['prior_answer'] = generate
         merge_data_list.append(merge_data)
