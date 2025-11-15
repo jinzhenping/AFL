@@ -46,6 +46,7 @@ def get_args():
     parser.add_argument("--save_rec_dir", type=str, default=None)
     parser.add_argument("--save_user_dir", type=str, default=None)
     parser.add_argument("--gpu", type=int, default=None, help='GPU device ID to use (e.g., 0 or 1). If not specified, uses CUDA_VISIBLE_DEVICES or default cuda device.')
+    parser.add_argument("--max_users", type=int, default=None, help='Maximum number of users to evaluate. If not specified, evaluates all users in the dataset.')
     return parser.parse_args()
 
 def recommend(data, args):
@@ -275,6 +276,12 @@ def main(args):
         merge_data = data.copy()
         merge_data['prior_answer'] = generate
         merge_data_list.append(merge_data)
+    
+    # Limit the number of users if specified
+    if args.max_users is not None and args.max_users > 0:
+        original_count = len(merge_data_list)
+        merge_data_list = merge_data_list[:args.max_users]
+        print(f"Limited evaluation to {len(merge_data_list)} users (from {original_count} total users)")
     
     print(f"Total samples to process: {len(merge_data_list)}")
     if len(merge_data_list) == 0:
