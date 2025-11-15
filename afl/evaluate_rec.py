@@ -75,29 +75,44 @@ def recommend(data, args):
             print("-" * 80)
             rec_reason, rec_items = split_rec_reponse(rec_agent_response)
             if rec_items is not None and len(rec_items) > 0:
-                # Verify that all recommended items are in the candidate list
+                # Filter out items that are not in the candidate list
                 candidates_lower = [can.lower().strip() for can in data['cans_name']]
-                all_valid = True
+                valid_items = []
+                invalid_items = []
+                
                 for item in rec_items:
                     item_lower = item.lower().strip()
-                    if item_lower not in candidates_lower:
-                        print(f"[WARNING] Recommended item '{item}' is not in candidate list.")
-                        all_valid = False
+                    if item_lower in candidates_lower:
+                        valid_items.append(item)
+                    else:
+                        invalid_items.append(item)
+                        print(f"[WARNING] Recommended item '{item}' is not in candidate list. Filtering out.")
                 
-                # Check if all candidates are included
-                if len(rec_items) < len(data['cans_name']):
-                    print(f"[WARNING] Only {len(rec_items)} items ranked, but {len(data['cans_name'])} candidates exist.")
-                    all_valid = False
+                # Check if we have enough valid items
+                if len(valid_items) < len(data['cans_name']):
+                    # Need to fill in missing candidates
+                    missing_candidates = []
+                    for can in data['cans_name']:
+                        can_lower = can.lower().strip()
+                        if not any(item.lower().strip() == can_lower for item in valid_items):
+                            missing_candidates.append(can)
+                    
+                    # Add missing candidates at the end (in original order)
+                    valid_items.extend(missing_candidates)
+                    print(f"[INFO] Added {len(missing_candidates)} missing candidates to complete the ranking.")
                 
-                if all_valid and len(rec_items) == len(data['cans_name']):
+                # Ensure we have exactly the right number of items
+                if len(valid_items) == len(data['cans_name']):
                     # Use the top-ranked item as the recommendation
-                    rec_item = rec_items[0]
-                    rec_ranking = rec_items  # Store full ranking
+                    rec_item = valid_items[0]
+                    rec_ranking = valid_items  # Store filtered ranking
+                    if invalid_items:
+                        print(f"[INFO] Using filtered ranking (removed {len(invalid_items)} invalid items)")
                     break
                 else:
                     retry_count += 1
                     if retry_count >= max_retries:
-                        print(f"[ERROR] Invalid ranking after {max_retries} retries")
+                        print(f"[ERROR] Could not create valid ranking after {max_retries} retries")
                         return new_data_list, 0, 0.0, 0.0, args
                     continue
             retry_count += 1
