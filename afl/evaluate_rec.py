@@ -117,77 +117,90 @@ def recommend(data, args):
             rec_reason, rec_items = split_rec_reponse(rec_agent_response)
             if rec_items is not None and len(rec_items) > 0:
                 # Filter out items that are not in the candidate list
-                # Use title-based similarity matching
+                # Use ID-based matching first, then fallback to name/title matching
                 import re
-                from difflib import SequenceMatcher
                 
-                def extract_title(text):
-                    """Extract title from formatted string like 'Category: X, Subcategory: Y, Title: Z'"""
-                    # Try to extract title part
-                    title_match = re.search(r'Title:\s*(.+?)(?:$|,|Category:)', text, re.IGNORECASE)
-                    if title_match:
-                        return title_match.group(1).strip()
-                    # If no "Title:" found, try to get the last part after last comma
-                    parts = text.split(',')
-                    if len(parts) >= 3:
-                        # Assume format: Category, Subcategory, Title
-                        return parts[-1].strip()
-                    # Fallback: return the whole text
-                    return text.strip()
+                # Get candidate IDs (original news IDs like "N1", "N2")
+                candidate_ids = data.get('cans_id', [])
                 
-                def normalize_title(title):
-                    """Normalize title for comparison"""
-                    # Remove extra whitespace
-                    title = re.sub(r'\s+', ' ', title)
-                    return title.lower().strip()
-                
-                def similarity_score(str1, str2):
-                    """Calculate similarity between two strings (0.0 to 1.0)"""
-                    return SequenceMatcher(None, str1, str2).ratio()
-                
-                # Extract titles from candidates
-                candidate_titles = {}
-                for can in data['cans_name']:
-                    title = extract_title(can)
-                    normalized_title = normalize_title(title)
-                    candidate_titles[normalized_title] = {
-                        'original': can,
-                        'title': title,
-                        'normalized': normalized_title
-                    }
-                
-                valid_items = []
-                invalid_items = []
-                similarity_threshold = 0.8  # 80% similarity required
-                
-                for item in rec_items:
-                    item_title = extract_title(item)
-                    item_normalized = normalize_title(item_title)
+                if not candidate_ids or len(candidate_ids) != len(data['cans_name']):
+                    # Fallback to name-based matching if IDs not available
+                    print("[WARNING] cans_id not found or mismatch, using name-based matching")
+                    candidates_lower = [can.lower().strip() for can in data['cans_name']]
+                    valid_items = []
+                    invalid_items = []
                     
-                    # Try exact match first (normalized)
-                    if item_normalized in candidate_titles:
-                        matched_candidate = candidate_titles[item_normalized]['original']
-                        valid_items.append(matched_candidate)
-                        continue
-                    
-                    # Try similarity matching
-                    best_match = None
-                    best_score = 0.0
-                    for norm_title, candidate_info in candidate_titles.items():
-                        score = similarity_score(item_normalized, norm_title)
-                        if score > best_score:
-                            best_score = score
-                            best_match = candidate_info
-                    
-                    if best_score >= similarity_threshold and best_match:
-                        valid_items.append(best_match['original'])
-                        print(f"[INFO] Matched '{item_title}' to '{best_match['title']}' with similarity {best_score:.2f}")
-                    else:
-                        invalid_items.append(item)
-                        if best_match:
-                            print(f"[WARNING] Recommended item '{item}' (title: '{item_title}') similarity {best_score:.2f} < {similarity_threshold}, not matched. Closest: '{best_match['title']}'")
+                    for item in rec_items:
+                        item_lower = item.lower().strip()
+                        if item_lower in candidates_lower:
+                            # Find the original candidate name
+                            idx = candidates_lower.index(item_lower)
+                            valid_items.append(data['cans_name'][idx])
                         else:
-                            print(f"[WARNING] Recommended item '{item}' (title: '{item_title}') is not in candidate list. Filtering out.")
+                            invalid_items.append(item)
+                            print(f"[WARNING] Recommended item '{item}' is not in candidate list. Filtering out.")
+                else:
+                    # ID-based matching: create mappings
+                    name_to_id = {}
+                    id_to_name = {}
+                    for name, news_id in zip(data['cans_name'], candidate_ids):
+                        name_to_id[name.lower().strip()] = news_id
+                        id_to_name[news_id] = name
+                    
+                    # Create set for fast lookup
+                    candidate_ids_set = set(candidate_ids)
+                    
+                    valid_items = []
+                    invalid_items = []
+                    
+                    # Pattern to match news IDs (e.g., "N1", "N2", "N123")
+                    id_pattern = re.compile(r'\b([Nn]\d+)\b')
+                    
+                    for item in rec_items:
+                        matched = False
+                        item_lower = item.lower().strip()
+                        
+                        # 1. Try ID-based matching first (extract ID from LLM response)
+                        id_matches = id_pattern.findall(item)
+                        if id_matches:
+                            # Normalize ID (uppercase)
+                            for matched_id in id_matches:
+                                normalized_id = matched_id.upper()
+                                if normalized_id in candidate_ids_set:
+                                    valid_items.append(id_to_name[normalized_id])
+                                    matched = True
+                                    print(f"[INFO] Matched by ID: '{normalized_id}' -> '{id_to_name[normalized_id]}'")
+                                    break
+                            if matched:
+                                continue
+                        
+                        # 2. Try exact name match
+                        if item_lower in name_to_id:
+                            matched_id = name_to_id[item_lower]
+                            # Verify this ID is in candidate list
+                            if matched_id in candidate_ids_set:
+                                valid_items.append(id_to_name[matched_id])
+                                matched = True
+                                continue
+                        
+                        # 3. Try to extract title and match (for partial matches)
+                        title_match = re.search(r'Title:\s*(.+?)(?:$|,|Category:)', item, re.IGNORECASE)
+                        if title_match:
+                            title = title_match.group(1).strip().lower()
+                            # Try to find candidate with matching title
+                            for can_name, can_id in zip(data['cans_name'], candidate_ids):
+                                can_title_match = re.search(r'Title:\s*(.+?)(?:$|,|Category:)', can_name, re.IGNORECASE)
+                                if can_title_match:
+                                    can_title = can_title_match.group(1).strip().lower()
+                                    if title == can_title:
+                                        valid_items.append(can_name)
+                                        matched = True
+                                        print(f"[INFO] Matched by title: '{title}' -> '{can_name}'")
+                                        break
+                        
+                        if not matched:
+                            invalid_items.append(item)
+                            print(f"[WARNING] Recommended item '{item}' is not in candidate list. Filtering out.")
                 
                 # Check if we have enough valid items
                 if len(valid_items) < len(data['cans_name']):

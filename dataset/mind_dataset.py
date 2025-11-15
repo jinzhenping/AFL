@@ -74,11 +74,13 @@ class MindDataset(data.Dataset):
             'seq_str': self.sep.join(seq_title),
             'cans': candidates_int,  # Integer IDs for model
             'cans_name': cans_name,  # Titles for display
+            'cans_id': candidates_str,  # Original news IDs (e.g., "N1", "N2")
             'cans_str': self.sep.join(cans_name),
             'len_cans': len(candidates_int),
             'item_id': next_item_int,  # Integer ID for model
             'item_name': next_item_name,  # Title for display
-            'correct_answer': next_item_name  # Title for evaluation
+            'correct_answer': next_item_name,  # Title for evaluation
+            'correct_answer_id': next_item_str  # Original news ID for evaluation
         }
         return sample
     
