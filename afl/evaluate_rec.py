@@ -3,6 +3,7 @@ import time
 import argparse
 import json
 import jsonlines
+import numpy as np
 
 from tqdm import tqdm
 import random
@@ -23,6 +24,8 @@ from utils.model import SASRec
 finish_num = 0
 total = 0
 correct = 0
+mrr_sum = 0.0
+ndcg5_sum = 0.0
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_dir', type=str, default='')
@@ -64,7 +67,7 @@ def recommend(data, args):
                 print(f"[WARNING] RecAgent API returned None for data id {data['id']}, retry {retry_count}/{max_retries}")
                 if retry_count >= max_retries:
                     print(f"[ERROR] RecAgent failed after {max_retries} retries for data id {data['id']}")
-                    return new_data_list, 0, args
+                    return new_data_list, 0, 0.0, 0.0, args
                 continue
             rec_reason, rec_item = split_rec_reponse(rec_agent_response)
             if rec_item is not None:
@@ -72,7 +75,7 @@ def recommend(data, args):
             retry_count += 1
             if retry_count >= max_retries:
                 print(f"[ERROR] Failed to parse rec_item after {max_retries} retries for data id {data['id']}")
-                return new_data_list, 0, args
+                return new_data_list, 0, 0.0, 0.0, args
         if args.max_epoch == 1:
             new_data = {'id':data['id'],'seq_name':data['seq_name'], 'cans_name':data['cans_name'], 'correct_answer':data['correct_answer'], 'epoch':epoch, 'rec_res':rec_agent_response, 'user_res':None,'prior_answer':data['prior_answer']}
             new_data_list.append(new_data)
@@ -127,24 +130,90 @@ def recommend(data, args):
         rec_agent.save_memory(rec_file_path)
         user_agent.save_memory(user_file_path)
     # evaluate
-    if rec_item.lower() == data['correct_answer'].lower().strip():
-        return new_data_list, 1, args
+    # Calculate metrics
+    correct_answer = data['correct_answer'].lower().strip()
+    rec_item_lower = rec_item.lower() if rec_item else ""
+    
+    # Hit@1: whether the recommended item matches the correct answer
+    hit_at_1 = 1 if rec_item_lower == correct_answer else 0
+    
+    # Calculate MRR (Mean Reciprocal Rank)
+    # MRR = 1/rank where rank is the position of the first relevant item
+    # Since we only have one final recommendation, if it's correct, MRR = 1.0
+    # Otherwise, we check if correct answer is in the candidate list
+    mrr = 0.0
+    if hit_at_1 == 1:
+        mrr = 1.0  # Recommended item is correct, rank = 1
     else:
-        return new_data_list, 0, args
+        # Check if correct answer is in candidate list
+        candidates = [can.lower().strip() for can in data['cans_name']]
+        if correct_answer in candidates:
+            # Find the rank (1-indexed) of correct answer in candidate list
+            rank = candidates.index(correct_answer) + 1
+            mrr = 1.0 / rank
+        # If correct answer not in candidates, MRR = 0.0
+    
+    # Calculate nDCG@5 (Normalized Discounted Cumulative Gain at 5)
+    # We need to create a ranked list of recommendations
+    # Since we have multiple epochs, we can use the final recommendation as rank 1
+    # and check if correct answer appears in top 5 candidates
+    candidates = [can.lower().strip() for can in data['cans_name']]
+    
+    # Create a ranked list: final recommendation is at position 1
+    # Then fill with other candidates (excluding the recommended one)
+    ranked_list = []
+    if rec_item_lower:
+        ranked_list.append(rec_item_lower)
+    
+    # Add other candidates that are not the recommended item
+    for can in candidates:
+        if can != rec_item_lower and can not in ranked_list:
+            ranked_list.append(can)
+    
+    # Take top 5
+    top5_ranked = ranked_list[:5]
+    
+    # Create relevance list (binary: 1 if correct, 0 otherwise)
+    relevance_list = [1.0 if item == correct_answer else 0.0 for item in top5_ranked]
+    
+    # Calculate DCG@5
+    dcg = 0.0
+    for i, rel in enumerate(relevance_list):
+        if rel > 0:
+            dcg += rel / np.log2(i + 2)  # i+2 because log2(1) = 0, we want log2(2) = 1
+    
+    # Calculate IDCG@5 (ideal DCG: correct answer at position 1)
+    idcg = 1.0 / np.log2(2)  # Only one relevant item at position 1
+    
+    if idcg > 0:
+        ndcg5 = dcg / idcg
+    else:
+        ndcg5 = 0.0
+    
+    return new_data_list, hit_at_1, mrr, ndcg5, args
 
 def setcallback(x):
     global finish_num
     global total
     global correct
+    global mrr_sum
+    global ndcg5_sum
 
-    data_list, flag, args = x
+    data_list, hit_at_1, mrr, ndcg5, args = x
     for data in data_list:
         append_jsonl(args.output_file, data)
     finish_num += 1
-    correct += flag
+    correct += hit_at_1
+    mrr_sum += mrr
+    ndcg5_sum += ndcg5
+    
     print("==============")
-    print(f"current hit@1 = {correct} / {finish_num} = {correct/finish_num}")
-    print(f"global hit@1 = {correct} / {total} = {correct/total}")
+    print(f"current Hit@1 = {correct} / {finish_num} = {correct/finish_num:.4f}")
+    print(f"current MRR = {mrr_sum} / {finish_num} = {mrr_sum/finish_num:.4f}")
+    print(f"current nDCG@5 = {ndcg5_sum} / {finish_num} = {ndcg5_sum/finish_num:.4f}")
+    print(f"global Hit@1 = {correct} / {total} = {correct/total:.4f}")
+    print(f"global MRR = {mrr_sum} / {total} = {mrr_sum/total:.4f}")
+    print(f"global nDCG@5 = {ndcg5_sum} / {total} = {ndcg5_sum/total:.4f}")
     print("==============")
 
 def main(args):
@@ -229,6 +298,16 @@ def main(args):
     print("Waiting for all tasks to complete...")
     pool.join()
     print("All tasks completed!")
+    
+    # Print final metrics
+    print("\n" + "="*50)
+    print("FINAL EVALUATION RESULTS")
+    print("="*50)
+    print(f"Total samples: {total}")
+    print(f"Hit@1: {correct} / {total} = {correct/total:.4f}")
+    print(f"MRR: {mrr_sum} / {total} = {mrr_sum/total:.4f}")
+    print(f"nDCG@5: {ndcg5_sum} / {total} = {ndcg5_sum/total:.4f}")
+    print("="*50)
 
 if __name__ == '__main__':
     args = get_args()
