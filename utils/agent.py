@@ -277,7 +277,13 @@ class UserModelAgent:
             self.user_build_memory_2 = user_build_memory_2
     def act(self, data, reason=None, item=None):
         if self.mode == 'prior_rec':
-            model_output = self.model_generate(data['seq'], data['len_seq'], data['cans'])
+            # Get scores for all candidates
+            score_dict = self.score(data['seq'], data['len_seq'], data['cans'])
+            
+            # Format scores as a string for the prompt
+            # Sort by score (descending) for better readability
+            sorted_scores = sorted(score_dict.items(), key=lambda x: x[1], reverse=True)
+            score_info = "\n".join([f"- {name}: {score:.4f}" for name, score in sorted_scores])
             
             # Ensure prior_answer is a string
             prior_answer = data.get('prior_answer', '')
@@ -290,7 +296,7 @@ class UserModelAgent:
                 system_prompt = self.user_system_promt.format(data['seq_str'], prior_answer)
             else:
                 system_prompt = self.user_system_promt.format(data['seq_str'], prior_answer)
-            user_prompt = self.user_user_prompt.format(data['cans_str'],model_output, item, reason)
+            user_prompt = self.user_user_prompt.format(data['cans_str'], score_info, item, reason)
             response = api_request(system_prompt, user_prompt, self.args)
             return response
         else:

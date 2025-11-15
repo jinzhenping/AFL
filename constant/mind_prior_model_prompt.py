@@ -50,13 +50,16 @@ Based on the above information, select the best news article again from the cand
 user_system_promt='''As a news reader, you've read the following news articles: {}.
 The news article you might like is: {}.
 Now, a recommendation system has recommended a news article to you from a list of news article candidates, and has provided the reason for the recommendation.
-Determine if this recommended news article is the most preferred option from the list of candidates based on your personal reading interests and previous reading records.
+A reward model (SASRec) has scored each candidate news article based on its relevance to your historical reading records.
 
 Some useful tips:
 1. You need to first give the reasons, and then decide whether or not the recommended news article is the most preferred one on the candidate list for you.
 2. Use "yes" to indicate that it is the best recommendation, and use "no" to indicate that it is not.
-3. Summarize your own interests based on your historical reading records to make a judgment.
-4. Each news article is provided in the format: "Category: {category}, Subcategory: {subcategory}, Title: {title}". Consider categories and subcategories when making your judgment.
+3. The scores provided by the reward model indicate how relevant each news article is to your historical reading records. Higher scores suggest higher relevance.
+4. You can refer to the scores given by the reward model, but they are not entirely accurate and should not be blindly trusted. Make your own judgment based on your reading interests.
+5. Do not simply assume that the news article with the highest score is necessarily your best choice.
+6. Summarize your own interests based on your historical reading records to make a judgment.
+7. Each news article is provided in the format: "Category: {category}, Subcategory: {subcategory}, Title: {title}". Consider categories and subcategories when making your judgment.
 
 You must follow this output format: 
 Reason: <your reason example>
@@ -65,7 +68,9 @@ Decision: <yes or no>
 '''
 
 user_user_prompt='''The list of candidate news articles is: {}.
-You can focus on considering these news articles: {}.
+The scores given by the reward model (SASRec) for each candidate news article based on your historical reading records are:
+{}
+
 The news article recommended by the recommendation system is: {}.
 The reason provided by the recommendation system is: {}
 Please determine if the recommended news article is the most preferred one on the candidate list for you.
@@ -76,13 +81,16 @@ The news article you might like is: {}.
 Previously, a recommendation system attempted to select your favorite news article from a list of news article candidates and provided the reasons.
 However, you think that the recommended news article is not the optimal choice from the candidate list and have provided reasons for this belief.
 Now, the recommendation system has once again recommended a news article and provided its reasons.
-Please determine if the recommended news article is the most preferred one on the candidate list for you.
+A reward model (SASRec) has scored each candidate news article based on its relevance to your historical reading records.
 
 Some useful tips:
 1. You need to first give the reasons, and then decide whether or not the recommended news article is the most preferred one on the candidate list for you.
 2. Only use "yes" to indicate that it is the best recommendation, and use "no" to indicate that it is not.
-3. Summarize your own interests based on your historical reading records to make a judgment.
-4. Each news article is provided in the format: "Category: {category}, Subcategory: {subcategory}, Title: {title}". Consider categories and subcategories when making your judgment.
+3. The scores provided by the reward model indicate how relevant each news article is to your historical reading records. Higher scores suggest higher relevance.
+4. You can refer to the scores given by the reward model, but they are not entirely accurate and should not be blindly trusted. Make your own judgment based on your reading interests and previous interactions.
+5. Do not simply assume that the news article with the highest score is necessarily your best choice.
+6. Summarize your own interests based on your historical reading records to make a judgment.
+7. Each news article is provided in the format: "Category: {category}, Subcategory: {subcategory}, Title: {title}". Consider categories and subcategories when making your judgment.
 
 You must follow this output format: 
 Reason: <your reason example>
@@ -91,7 +99,9 @@ Decision: <yes or no>
 '''
 
 user_memory_user_prompt='''The list of candidate news articles is: {}.
-You can focus on considering these news articles: {}.
+The scores given by the reward model (SASRec) for each candidate news article based on your historical reading records are:
+{}
+
 Here are the news articles previously recommended by the recommendation system and the reasons for these recommendations, along with your reasons for thinking that the recommended news articles were not the best choices:
 {}
 
