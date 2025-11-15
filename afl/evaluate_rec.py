@@ -75,10 +75,17 @@ def recommend(data, args):
         user_agent.mode = 'prior_rec'
         user_agent.device = _process_model_cache.device
         user_agent.load_prompt()  # Still need prompts
-        # Reuse cached model and mappings
+        # Reuse cached model and mappings (copy all necessary attributes)
         user_agent.model = _process_model_cache.model
         user_agent.id2name = _process_model_cache.id2name
         user_agent.name2id = _process_model_cache.name2id
+        # Copy model-related attributes that are needed
+        if hasattr(_process_model_cache, 'item_num'):
+            user_agent.item_num = _process_model_cache.item_num
+        if hasattr(_process_model_cache, 'seq_size'):
+            user_agent.seq_size = _process_model_cache.seq_size
+        if hasattr(_process_model_cache, 'news_id_to_int'):
+            user_agent.news_id_to_int = _process_model_cache.news_id_to_int
     flag = False
     epoch = 1
     rec_item = None
