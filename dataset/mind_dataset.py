@@ -62,6 +62,11 @@ class MindDataset(data.Dataset):
         cans_name = [self.item_id2name.get(can, can) for can in candidates_str if can in self.item_id2name]
         next_item_name = self.item_id2name.get(next_item_str, next_item_str)
         
+        # Format candidates with ID for LLM prompt (e.g., "N1: Category: ..., Subcategory: ..., Title: ...")
+        cans_str_with_id = []
+        for can_id, can_name in zip(candidates_str, cans_name):
+            cans_str_with_id.append(f"{can_id}: {can_name}")
+        
         # Pad sequence for model input (use integer IDs)
         seq = self.pad_sequence(seq_unpad_int)
         len_seq = len(seq_unpad_int)
@@ -73,9 +78,9 @@ class MindDataset(data.Dataset):
             'len_seq': len_seq,
             'seq_str': self.sep.join(seq_title),
             'cans': candidates_int,  # Integer IDs for model
-            'cans_name': cans_name,  # Titles for display
+            'cans_name': cans_name,  # Titles for display (without ID)
             'cans_id': candidates_str,  # Original news IDs (e.g., "N1", "N2")
-            'cans_str': self.sep.join(cans_name),
+            'cans_str': self.sep.join(cans_str_with_id),  # Formatted with ID for LLM prompt
             'len_cans': len(candidates_int),
             'item_id': next_item_int,  # Integer ID for model
             'item_name': next_item_name,  # Title for display

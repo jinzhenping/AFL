@@ -12,11 +12,13 @@ Some useful tips:
 You must follow this output format: 
 Reason: <your reason example>
 Ranking:
-1. <item 1>
-2. <item 2>
-3. <item 3>
-4. <item 4>
-5. <item 5>
+1. <item 1> (must include the news ID, e.g., "N1: Category: ..., Subcategory: ..., Title: ...")
+2. <item 2> (must include the news ID)
+3. <item 3> (must include the news ID)
+4. <item 4> (must include the news ID)
+5. <item 5> (must include the news ID)
+
+Important: Each item in the ranking must start with the news ID (e.g., "N1", "N2") followed by the full article information.
 
 '''
 
@@ -40,11 +42,13 @@ Some useful tips:
 You must follow this output format: 
 Reason: <your reason example>
 Ranking:
-1. <item 1>
-2. <item 2>
-3. <item 3>
-4. <item 4>
-5. <item 5>
+1. <item 1> (must include the news ID, e.g., "N1: Category: ..., Subcategory: ..., Title: ...")
+2. <item 2> (must include the news ID)
+3. <item 3> (must include the news ID)
+4. <item 4> (must include the news ID)
+5. <item 5> (must include the news ID)
+
+Important: Each item in the ranking must start with the news ID (e.g., "N1", "N2") followed by the full article information.
 
 '''
 

@@ -130,6 +130,13 @@ def recommend(data, args):
                 # Get candidate IDs (original news IDs like "N1", "N2")
                 candidate_ids = data.get('cans_id', [])
                 
+                # Debug: print candidate info
+                if candidate_ids:
+                    print(f"[DEBUG] Candidate IDs: {candidate_ids}")
+                    print(f"[DEBUG] Candidate names count: {len(data['cans_name'])}, Candidate IDs count: {len(candidate_ids)}")
+                else:
+                    print("[DEBUG] No candidate IDs found in data")
+                
                 if not candidate_ids or len(candidate_ids) != len(data['cans_name']):
                     # Fallback to name-based matching if IDs not available
                     print("[WARNING] cans_id not found or mismatch, using name-based matching")
@@ -154,6 +161,9 @@ def recommend(data, args):
                         name_to_id[name.lower().strip()] = news_id
                         id_to_name[news_id] = name
                     
+                    print(f"[DEBUG] Created name_to_id mapping with {len(name_to_id)} entries")
+                    print(f"[DEBUG] Sample candidate IDs: {candidate_ids[:3] if len(candidate_ids) >= 3 else candidate_ids}")
+                    
                     # Create set for fast lookup
                     candidate_ids_set = set(candidate_ids)
                     
@@ -167,12 +177,16 @@ def recommend(data, args):
                         matched = False
                         item_lower = item.lower().strip()
                         
+                        print(f"[DEBUG] Processing item: {item[:100]}...")
+                        
                         # 1. Try ID-based matching first (extract ID from LLM response)
                         id_matches = id_pattern.findall(item)
                         if id_matches:
+                            print(f"[DEBUG] Found ID matches in item: {id_matches}")
                             # Normalize ID (uppercase)
                             for matched_id in id_matches:
                                 normalized_id = matched_id.upper()
+                                print(f"[DEBUG] Checking if '{normalized_id}' is in candidate_ids_set: {normalized_id in candidate_ids_set}")
                                 if normalized_id in candidate_ids_set:
                                     valid_items.append(id_to_name[normalized_id])
                                     matched = True
@@ -180,6 +194,8 @@ def recommend(data, args):
                                     break
                             if matched:
                                 continue
+                        else:
+                            print(f"[DEBUG] No ID pattern found in item")
                         
                         # 2. Try exact name match
                         if item_lower in name_to_id:
@@ -188,12 +204,18 @@ def recommend(data, args):
                             if matched_id in candidate_ids_set:
                                 valid_items.append(id_to_name[matched_id])
                                 matched = True
+                                print(f"[INFO] Matched by exact name")
                                 continue
+                        else:
+                            print(f"[DEBUG] Item not found in name_to_id mapping")
                         
                         # 3. Try to extract title and match (for partial matches)
                         title_match = re.search(r'Title:\s*(.+?)(?:$|,|Category:)', item, re.IGNORECASE)
                         if title_match:
                             title = title_match.group(1).strip().lower()
+                            # Remove any trailing explanation in parentheses
+                            title = re.sub(r'\s*\(.*?\)\s*$', '', title).strip()
+                            print(f"[DEBUG] Extracted title: '{title[:50]}...'")
                             # Try to find candidate with matching title
                             for can_name, can_id in zip(data['cans_name'], candidate_ids):
                                 can_title_match = re.search(r'Title:\s*(.+?)(?:$|,|Category:)', can_name, re.IGNORECASE)
@@ -202,12 +224,12 @@ def recommend(data, args):
                                     if title == can_title:
                                         valid_items.append(can_name)
                                         matched = True
-                                        print(f"[INFO] Matched by title: '{title}' -> '{can_name}'")
+                                        print(f"[INFO] Matched by title: '{title[:50]}...' -> '{can_name[:50]}...'")
                                         break
                         
                         if not matched:
                             invalid_items.append(item)
-                            print(f"[WARNING] Recommended item '{item}' is not in candidate list. Filtering out.")
+                            print(f"[WARNING] Recommended item '{item[:100]}...' is not in candidate list. Filtering out.")
                 
                 # Check if we have enough valid items
                 if len(valid_items) < len(data['cans_name']):
