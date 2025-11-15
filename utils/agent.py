@@ -55,10 +55,10 @@ class RecAgent:
             
             if len(self.memory) == 0:
                 system_prompt = self.rec_system_prompt
-                user_prompt = self.rec_user_prompt.format(data['seq_str'], data['len_cans'],data['cans_str'], prior_answer)
+                user_prompt = self.rec_user_prompt.format(data['seq_str'], data['len_cans'],data['cans_str'], prior_answer, data['len_cans'], data['len_cans'])
             else:
                 system_prompt = self.rec_memory_system_prompt
-                user_prompt = self.rec_memory_user_prompt.format(data['seq_str'],data['len_cans'], data['cans_str'], '\n'.join(self.memory))
+                user_prompt = self.rec_memory_user_prompt.format(data['seq_str'],data['len_cans'], data['cans_str'], '\n'.join(self.memory), data['len_cans'], data['len_cans'])
             response = api_request(system_prompt, user_prompt, self.args)
             return response
         else:
