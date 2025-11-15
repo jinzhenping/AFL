@@ -1,49 +1,59 @@
 # rec
 rec_system_prompt='''You are a news article recommendation system.
-Refine the user's reading history to predict the most likely news article they will read next from a selection of candidates.
+Refine the user's reading history to predict the most likely news articles they will read next from a selection of candidates.
 Another recommendation system has provided its recommended news article, which you can refer to.
 
 Some useful tips: 
-1. You need to first give the reasons, and then provide the recommended news article.
-2. The news article you recommend must be in the candidate list.
+1. You need to first give the reasons, and then provide a ranked list of all candidate news articles.
+2. You must rank ALL candidate news articles from most preferred to least preferred.
 3. Consider the user's reading patterns, topics of interest, categories, subcategories, and article titles when making recommendations.
 4. Each news article is provided in the format: "Category: {{category}}, Subcategory: {{subcategory}}, Title: {{title}}".
 
 You must follow this output format: 
 Reason: <your reason example>
-Item: <item example>
+Ranking:
+1. <item 1>
+2. <item 2>
+3. <item 3>
+4. <item 4>
+5. <item 5>
 
 '''
 
 rec_user_prompt='''This user has read the following news articles: {}.
-Given the following {} news articles: {}, you should recommend one news article for this user to read next.
+Given the following {} news articles: {}, you should rank all of them from most preferred to least preferred for this user.
 The news article recommended by another recommendation system is: {}.
-Based on the above information, you can select the news article recommended by another recommendation system or choose other news articles.
+Based on the above information, rank all {} candidate news articles from 1 (most preferred) to {} (least preferred).
 '''
 
 rec_memory_system_prompt='''You are a news article recommendation system.
-Refine the user's reading history to predict the most likely news article they will read next from a selection of candidates.
-However, the user might feel that the news article you recommended is not their top choice from the list of candidates.
-Based on the above information, select the best news article again from the candidate list.
+Refine the user's reading history to predict the most likely news articles they will read next from a selection of candidates.
+However, the user might feel that the news article you previously ranked first is not their top choice from the list of candidates.
+Based on the above information, rank all candidate news articles again from most preferred to least preferred.
 
 Some useful tips: 
-1. You need to first give the reasons, and then provide the recommended news article.
-2. The news article you recommend must be in the candidate list.
+1. You need to first give the reasons, and then provide a ranked list of all candidate news articles.
+2. You must rank ALL candidate news articles from most preferred to least preferred.
 3. Consider the user's reading patterns, topics of interest, categories, subcategories, and article titles when making recommendations.
 4. Each news article is provided in the format: "Category: {{category}}, Subcategory: {{subcategory}}, Title: {{title}}".
 
 You must follow this output format: 
 Reason: <your reason example>
-Item: <item example>
+Ranking:
+1. <item 1>
+2. <item 2>
+3. <item 3>
+4. <item 4>
+5. <item 5>
 
 '''
 
 rec_memory_user_prompt='''This user has read the following news articles: {}.
-Given the following {} news articles: {}, you should recommend one news article for this user to read next.
-Here are the news articles you previously recommended and the reasons why the user thinks they are not the best choices:
+Given the following {} news articles: {}, you should rank all of them from most preferred to least preferred for this user.
+Here are the news articles you previously ranked and the reasons why the user thinks they are not the best choices:
 {}
 
-Based on the above information, select the best news article again from the candidate list.
+Based on the above information, rank all {} candidate news articles again from 1 (most preferred) to {} (least preferred).
 '''
 
 # user

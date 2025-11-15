@@ -73,15 +73,39 @@ def recommend(data, args):
             print(f"\n[RecAgent Response - Epoch {epoch}, User {data['id']}]")
             print(f"{rec_agent_response}")
             print("-" * 80)
-            rec_reason, rec_item = split_rec_reponse(rec_agent_response)
-            if rec_item is not None:
-                break
+            rec_reason, rec_items = split_rec_reponse(rec_agent_response)
+            if rec_items is not None and len(rec_items) > 0:
+                # Verify that all recommended items are in the candidate list
+                candidates_lower = [can.lower().strip() for can in data['cans_name']]
+                all_valid = True
+                for item in rec_items:
+                    item_lower = item.lower().strip()
+                    if item_lower not in candidates_lower:
+                        print(f"[WARNING] Recommended item '{item}' is not in candidate list.")
+                        all_valid = False
+                
+                # Check if all candidates are included
+                if len(rec_items) < len(data['cans_name']):
+                    print(f"[WARNING] Only {len(rec_items)} items ranked, but {len(data['cans_name'])} candidates exist.")
+                    all_valid = False
+                
+                if all_valid and len(rec_items) == len(data['cans_name']):
+                    # Use the top-ranked item as the recommendation
+                    rec_item = rec_items[0]
+                    rec_ranking = rec_items  # Store full ranking
+                    break
+                else:
+                    retry_count += 1
+                    if retry_count >= max_retries:
+                        print(f"[ERROR] Invalid ranking after {max_retries} retries")
+                        return new_data_list, 0, 0.0, 0.0, args
+                    continue
             retry_count += 1
             if retry_count >= max_retries:
                 print(f"[ERROR] Failed to parse rec_item after {max_retries} retries for data id {data['id']}")
                 return new_data_list, 0, 0.0, 0.0, args
         if args.max_epoch == 1:
-            new_data = {'id':data['id'],'seq_name':data['seq_name'], 'cans_name':data['cans_name'], 'correct_answer':data['correct_answer'], 'epoch':epoch, 'rec_res':rec_agent_response, 'user_res':None,'prior_answer':data['prior_answer']}
+            new_data = {'id':data['id'],'seq_name':data['seq_name'], 'cans_name':data['cans_name'], 'correct_answer':data['correct_answer'], 'epoch':epoch, 'rec_res':rec_agent_response, 'user_res':None,'prior_answer':data['prior_answer'], 'rec_ranking':rec_ranking}
             new_data_list.append(new_data)
             
             memory_info = {"epoch":epoch, "rec_reason":rec_reason, "rec_item":rec_item, "user_reason":None}
@@ -117,7 +141,7 @@ def recommend(data, args):
                 break
 
         # save
-        new_data = {'id':data['id'],'seq_name':data['seq_name'], 'cans_name':data['cans_name'], 'correct_answer':data['correct_answer'], 'epoch':epoch, 'rec_res':rec_agent_response, 'user_res':user_agent_response,'prior_answer':data['prior_answer']}
+        new_data = {'id':data['id'],'seq_name':data['seq_name'], 'cans_name':data['cans_name'], 'correct_answer':data['correct_answer'], 'epoch':epoch, 'rec_res':rec_agent_response, 'user_res':user_agent_response,'prior_answer':data['prior_answer'], 'rec_ranking':rec_ranking}
         new_data_list.append(new_data)
 
         memory_info = {"epoch":epoch, "rec_reason":rec_reason, "rec_item":rec_item, "user_reason":user_reason}
@@ -137,48 +161,27 @@ def recommend(data, args):
         rec_agent.save_memory(rec_file_path)
         user_agent.save_memory(user_file_path)
     # evaluate
-    # Calculate metrics
+    # Calculate metrics using the ranking
     correct_answer = data['correct_answer'].lower().strip()
-    rec_item_lower = rec_item.lower() if rec_item else ""
     
-    # Hit@1: whether the recommended item matches the correct answer
-    hit_at_1 = 1 if rec_item_lower == correct_answer else 0
+    # Use the ranking from RecAgent
+    rec_ranking_lower = [item.lower().strip() for item in rec_ranking] if rec_ranking else []
+    
+    # Hit@1: whether the top-ranked item matches the correct answer
+    hit_at_1 = 1 if len(rec_ranking_lower) > 0 and rec_ranking_lower[0] == correct_answer else 0
     
     # Calculate MRR (Mean Reciprocal Rank)
-    # MRR = 1/rank where rank is the position of the first relevant item
-    # Since we only have one final recommendation, if it's correct, MRR = 1.0
-    # Otherwise, we check if correct answer is in the candidate list
+    # MRR = 1/rank where rank is the position of the first relevant item in the ranking
     mrr = 0.0
-    if hit_at_1 == 1:
-        mrr = 1.0  # Recommended item is correct, rank = 1
-    else:
-        # Check if correct answer is in candidate list
-        candidates = [can.lower().strip() for can in data['cans_name']]
-        if correct_answer in candidates:
-            # Find the rank (1-indexed) of correct answer in candidate list
-            rank = candidates.index(correct_answer) + 1
-            mrr = 1.0 / rank
-        # If correct answer not in candidates, MRR = 0.0
+    if correct_answer in rec_ranking_lower:
+        # Find the rank (1-indexed) of correct answer in ranking
+        rank = rec_ranking_lower.index(correct_answer) + 1
+        mrr = 1.0 / rank
+    # If correct answer not in ranking, MRR = 0.0
     
     # Calculate nDCG@5 (Normalized Discounted Cumulative Gain at 5)
-    # We need to create a ranked list of recommendations
-    # Since we have multiple epochs, we can use the final recommendation as rank 1
-    # and check if correct answer appears in top 5 candidates
-    candidates = [can.lower().strip() for can in data['cans_name']]
-    
-    # Create a ranked list: final recommendation is at position 1
-    # Then fill with other candidates (excluding the recommended one)
-    ranked_list = []
-    if rec_item_lower:
-        ranked_list.append(rec_item_lower)
-    
-    # Add other candidates that are not the recommended item
-    for can in candidates:
-        if can != rec_item_lower and can not in ranked_list:
-            ranked_list.append(can)
-    
-    # Take top 5
-    top5_ranked = ranked_list[:5]
+    # Use the ranking provided by RecAgent (top 5)
+    top5_ranked = rec_ranking_lower[:5]
     
     # Create relevance list (binary: 1 if correct, 0 otherwise)
     relevance_list = [1.0 if item == correct_answer else 0.0 for item in top5_ranked]
