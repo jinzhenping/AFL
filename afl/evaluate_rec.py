@@ -101,6 +101,18 @@ def recommend(data, args):
                     valid_items.extend(missing_candidates)
                     print(f"[INFO] Added {len(missing_candidates)} missing candidates to complete the ranking.")
                 
+                # Check if groundtruth (correct_answer) is in the ranking
+                correct_answer_lower = data['correct_answer'].lower().strip()
+                valid_items_lower = [item.lower().strip() for item in valid_items]
+                
+                if correct_answer_lower not in valid_items_lower:
+                    print(f"[WARNING] Groundtruth '{data['correct_answer']}' is not in the ranking. Retrying...")
+                    retry_count += 1
+                    if retry_count >= max_retries:
+                        print(f"[ERROR] Groundtruth not found in ranking after {max_retries} retries. Marking user as invalid.")
+                        return new_data_list, 0, 0.0, 0.0, args
+                    continue
+                
                 # Ensure we have exactly the right number of items
                 if len(valid_items) == len(data['cans_name']):
                     # Use the top-ranked item as the recommendation

@@ -28,8 +28,8 @@ def gpt_api(system_prompt, user_prompt, args):
         "temperature": args.temperature,
     }
     
-    # Add small delay before each request to avoid rate limits
-    time.sleep(0.1)  # 100ms delay between requests
+    # Add delay before each request to avoid rate limits
+    time.sleep(1.0)  # 1 second delay between requests
     
     while max_retry_num >= 0:
         request_result = None
