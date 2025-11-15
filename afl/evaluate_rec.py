@@ -89,7 +89,16 @@ def recommend(data, args):
         #rec agent
         retry_count = 0
         max_retries = 10
+        api_start_time = time.time()
+        max_api_time = 300  # 5 minutes timeout per API call attempt
         while retry_count < max_retries:
+            # Check if we've been trying too long
+            if time.time() - api_start_time > max_api_time:
+                print(f"[ERROR] API call timeout after {max_api_time} seconds for data id {data['id']}")
+                is_invalid_user = True
+                if len(new_data_list) == 0:
+                    new_data_list.append({'id': data['id'], 'invalid': True, 'reason': 'api_timeout'})
+                return new_data_list, 0, 0.0, 0.0, args, is_invalid_user
             rec_agent_response = rec_agent.act(data)
             if rec_agent_response is None:
                 retry_count += 1
@@ -108,17 +117,77 @@ def recommend(data, args):
             rec_reason, rec_items = split_rec_reponse(rec_agent_response)
             if rec_items is not None and len(rec_items) > 0:
                 # Filter out items that are not in the candidate list
-                candidates_lower = [can.lower().strip() for can in data['cans_name']]
+                # Use title-based similarity matching
+                import re
+                from difflib import SequenceMatcher
+                
+                def extract_title(text):
+                    """Extract title from formatted string like 'Category: X, Subcategory: Y, Title: Z'"""
+                    # Try to extract title part
+                    title_match = re.search(r'Title:\s*(.+?)(?:$|,|Category:)', text, re.IGNORECASE)
+                    if title_match:
+                        return title_match.group(1).strip()
+                    # If no "Title:" found, try to get the last part after last comma
+                    parts = text.split(',')
+                    if len(parts) >= 3:
+                        # Assume format: Category, Subcategory, Title
+                        return parts[-1].strip()
+                    # Fallback: return the whole text
+                    return text.strip()
+                
+                def normalize_title(title):
+                    """Normalize title for comparison"""
+                    # Remove extra whitespace
+                    title = re.sub(r'\s+', ' ', title)
+                    return title.lower().strip()
+                
+                def similarity_score(str1, str2):
+                    """Calculate similarity between two strings (0.0 to 1.0)"""
+                    return SequenceMatcher(None, str1, str2).ratio()
+                
+                # Extract titles from candidates
+                candidate_titles = {}
+                for can in data['cans_name']:
+                    title = extract_title(can)
+                    normalized_title = normalize_title(title)
+                    candidate_titles[normalized_title] = {
+                        'original': can,
+                        'title': title,
+                        'normalized': normalized_title
+                    }
+                
                 valid_items = []
                 invalid_items = []
+                similarity_threshold = 0.8  # 80% similarity required
                 
                 for item in rec_items:
-                    item_lower = item.lower().strip()
-                    if item_lower in candidates_lower:
-                        valid_items.append(item)
+                    item_title = extract_title(item)
+                    item_normalized = normalize_title(item_title)
+                    
+                    # Try exact match first (normalized)
+                    if item_normalized in candidate_titles:
+                        matched_candidate = candidate_titles[item_normalized]['original']
+                        valid_items.append(matched_candidate)
+                        continue
+                    
+                    # Try similarity matching
+                    best_match = None
+                    best_score = 0.0
+                    for norm_title, candidate_info in candidate_titles.items():
+                        score = similarity_score(item_normalized, norm_title)
+                        if score > best_score:
+                            best_score = score
+                            best_match = candidate_info
+                    
+                    if best_score >= similarity_threshold and best_match:
+                        valid_items.append(best_match['original'])
+                        print(f"[INFO] Matched '{item_title}' to '{best_match['title']}' with similarity {best_score:.2f}")
                     else:
                         invalid_items.append(item)
-                        print(f"[WARNING] Recommended item '{item}' is not in candidate list. Filtering out.")
+                        if best_match:
+                            print(f"[WARNING] Recommended item '{item}' (title: '{item_title}') similarity {best_score:.2f} < {similarity_threshold}, not matched. Closest: '{best_match['title']}'")
+                        else:
+                            print(f"[WARNING] Recommended item '{item}' (title: '{item_title}') is not in candidate list. Filtering out.")
                 
                 # Check if we have enough valid items
                 if len(valid_items) < len(data['cans_name']):
@@ -187,7 +256,15 @@ def recommend(data, args):
         #user agent
         retry_count = 0
         max_retries = 10
+        api_start_time = time.time()
+        max_api_time = 300  # 5 minutes timeout per API call attempt
         while retry_count < max_retries:
+            # Check if we've been trying too long
+            if time.time() - api_start_time > max_api_time:
+                print(f"[ERROR] UserAgent API call timeout after {max_api_time} seconds for data id {data['id']}")
+                flag = False  # Assume rejection
+                user_reason = "API timeout"
+                break
             user_agent_response = user_agent.act(data,rec_reason, rec_item)
             if user_agent_response is None:
                 retry_count += 1
@@ -309,12 +386,18 @@ def setcallback(x):
     
     valid_users = finish_num - invalid_users
     print("==============")
-    print(f"current Hit@1 = {correct} / {valid_users} = {correct/valid_users:.4f if valid_users > 0 else 0:.4f}")
-    print(f"current MRR = {mrr_sum} / {valid_users} = {mrr_sum/valid_users:.4f if valid_users > 0 else 0:.4f}")
-    print(f"current nDCG@5 = {ndcg5_sum} / {valid_users} = {ndcg5_sum/valid_users:.4f if valid_users > 0 else 0:.4f}")
-    print(f"global Hit@1 = {correct} / {total} = {correct/total:.4f if total > 0 else 0:.4f}")
-    print(f"global MRR = {mrr_sum} / {total} = {mrr_sum/total:.4f if total > 0 else 0:.4f}")
-    print(f"global nDCG@5 = {ndcg5_sum} / {total} = {ndcg5_sum/total:.4f if total > 0 else 0:.4f}")
+    current_hit1 = (correct/valid_users if valid_users > 0 else 0)
+    current_mrr = (mrr_sum/valid_users if valid_users > 0 else 0)
+    current_ndcg5 = (ndcg5_sum/valid_users if valid_users > 0 else 0)
+    global_hit1 = (correct/total if total > 0 else 0)
+    global_mrr = (mrr_sum/total if total > 0 else 0)
+    global_ndcg5 = (ndcg5_sum/total if total > 0 else 0)
+    print(f"current Hit@1 = {correct} / {valid_users} = {current_hit1:.4f}")
+    print(f"current MRR = {mrr_sum} / {valid_users} = {current_mrr:.4f}")
+    print(f"current nDCG@5 = {ndcg5_sum} / {valid_users} = {current_ndcg5:.4f}")
+    print(f"global Hit@1 = {correct} / {total} = {global_hit1:.4f}")
+    print(f"global MRR = {mrr_sum} / {total} = {global_mrr:.4f}")
+    print(f"global nDCG@5 = {ndcg5_sum} / {total} = {global_ndcg5:.4f}")
     print(f"Invalid users: {invalid_users} / {finish_num}")
     print("==============")
 
@@ -404,8 +487,31 @@ def main(args):
         pool.apply_async(func=recommend, args=(data, args), callback=setcallback, error_callback=error_callback)
     pool.close()
     print("Waiting for all tasks to complete...")
-    pool.join()
-    print("All tasks completed!")
+    
+    # Add progress monitoring to prevent hanging
+    import threading
+    def monitor_progress():
+        last_finish = finish_num
+        while True:
+            time.sleep(30)  # Check every 30 seconds
+            current_finish = finish_num
+            if current_finish == last_finish and current_finish < total:
+                print(f"[PROGRESS] Still processing... Completed: {current_finish}/{total} ({current_finish/total*100:.1f}%)")
+            last_finish = current_finish
+            if current_finish >= total:
+                break
+    
+    monitor_thread = threading.Thread(target=monitor_progress, daemon=True)
+    monitor_thread.start()
+    
+    try:
+        pool.join()
+        print("All tasks completed!")
+    except KeyboardInterrupt:
+        print("\n[WARNING] Interrupted by user. Terminating pool...")
+        pool.terminate()
+        pool.join()
+        print("[INFO] Pool terminated.")
     
     # Clear model cache after all processes finish
     # Note: Each process has its own memory space, so when a process terminates,
@@ -416,15 +522,18 @@ def main(args):
     
     # Print final metrics
     valid_users = total - invalid_users
+    final_hit1 = (correct/valid_users if valid_users > 0 else 0)
+    final_mrr = (mrr_sum/valid_users if valid_users > 0 else 0)
+    final_ndcg5 = (ndcg5_sum/valid_users if valid_users > 0 else 0)
     print("\n" + "="*50)
     print("FINAL EVALUATION RESULTS")
     print("="*50)
     print(f"Total samples: {total}")
     print(f"Valid users: {valid_users}")
     print(f"Invalid users: {invalid_users}")
-    print(f"Hit@1: {correct} / {valid_users} = {correct/valid_users:.4f if valid_users > 0 else 0:.4f}")
-    print(f"MRR: {mrr_sum} / {valid_users} = {mrr_sum/valid_users:.4f if valid_users > 0 else 0:.4f}")
-    print(f"nDCG@5: {ndcg5_sum} / {valid_users} = {ndcg5_sum/valid_users:.4f if valid_users > 0 else 0:.4f}")
+    print(f"Hit@1: {correct} / {valid_users} = {final_hit1:.4f}")
+    print(f"MRR: {mrr_sum} / {valid_users} = {final_mrr:.4f}")
+    print(f"nDCG@5: {ndcg5_sum} / {valid_users} = {final_ndcg5:.4f}")
     print("="*50)
 
 if __name__ == '__main__':

@@ -56,8 +56,12 @@ def gpt_api(system_prompt, user_prompt, args):
                                 wait_time = float(wait_match.group(1)) + 1  # Add 1 second buffer
                         except:
                             pass
+                    # Cap wait time to prevent extremely long waits
+                    wait_time = min(wait_time, 60)  # Maximum 60 seconds wait
                     print(f"[API RATE LIMIT] Waiting {wait_time:.1f} seconds before retry...")
                     time.sleep(wait_time)
+                    # Don't decrement retry count for rate limits - they're temporary
+                    continue
                 else:
                     max_retry_num -= 1
                     if max_retry_num >= 0:
