@@ -17,6 +17,12 @@ def write_jsonl(file_path, data_list):
             jsonl_file.write(data)
             
 def append_jsonl(file_path, data):
+    # Create directory if it doesn't exist
+    import os
+    dir_path = os.path.dirname(file_path)
+    if dir_path and not os.path.exists(dir_path):
+        os.makedirs(dir_path, exist_ok=True)
+    
     with jsonlines.open(file_path, 'a') as jsonl_file:
         jsonl_file.write(data)
             

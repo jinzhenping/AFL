@@ -70,6 +70,9 @@ def recommend(data, args):
                     print(f"[ERROR] RecAgent failed after {max_retries} retries for data id {data['id']}")
                     return new_data_list, 0, 0.0, 0.0, args
                 continue
+            print(f"\n[RecAgent Response - Epoch {epoch}, User {data['id']}]")
+            print(f"{rec_agent_response}")
+            print("-" * 80)
             rec_reason, rec_item = split_rec_reponse(rec_agent_response)
             if rec_item is not None:
                 break
@@ -100,6 +103,9 @@ def recommend(data, args):
                     user_reason = "API request failed"
                     break
                 continue
+            print(f"\n[UserAgent Response - Epoch {epoch}, User {data['id']}]")
+            print(f"{user_agent_response}")
+            print("-" * 80)
             user_reason, flag  = split_user_response(user_agent_response)
             if flag is not None:
                 break
