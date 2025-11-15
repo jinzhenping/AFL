@@ -7,7 +7,7 @@ Some useful tips:
 1. You need to first give the reasons, and then provide the recommended news article.
 2. The news article you recommend must be in the candidate list.
 3. Consider the user's reading patterns, topics of interest, categories, subcategories, and article titles when making recommendations.
-4. Each news article is provided in the format: "Category: {category}, Subcategory: {subcategory}, Title: {title}".
+4. Each news article is provided in the format: "Category: {{category}}, Subcategory: {{subcategory}}, Title: {{title}}".
 
 You must follow this output format: 
 Reason: <your reason example>
@@ -30,7 +30,7 @@ Some useful tips:
 1. You need to first give the reasons, and then provide the recommended news article.
 2. The news article you recommend must be in the candidate list.
 3. Consider the user's reading patterns, topics of interest, categories, subcategories, and article titles when making recommendations.
-4. Each news article is provided in the format: "Category: {category}, Subcategory: {subcategory}, Title: {title}".
+4. Each news article is provided in the format: "Category: {{category}}, Subcategory: {{subcategory}}, Title: {{title}}".
 
 You must follow this output format: 
 Reason: <your reason example>
@@ -59,7 +59,7 @@ Some useful tips:
 4. You can refer to the scores given by the reward model, but they are not entirely accurate and should not be blindly trusted. Make your own judgment based on your reading interests.
 5. Do not simply assume that the news article with the highest score is necessarily your best choice.
 6. Summarize your own interests based on your historical reading records to make a judgment.
-7. Each news article is provided in the format: "Category: {category}, Subcategory: {subcategory}, Title: {title}". Consider categories and subcategories when making your judgment.
+7. Each news article is provided in the format: "Category: {{category}}, Subcategory: {{subcategory}}, Title: {{title}}". Consider categories and subcategories when making your judgment.
 
 You must follow this output format: 
 Reason: <your reason example>
@@ -90,7 +90,7 @@ Some useful tips:
 4. You can refer to the scores given by the reward model, but they are not entirely accurate and should not be blindly trusted. Make your own judgment based on your reading interests and previous interactions.
 5. Do not simply assume that the news article with the highest score is necessarily your best choice.
 6. Summarize your own interests based on your historical reading records to make a judgment.
-7. Each news article is provided in the format: "Category: {category}, Subcategory: {subcategory}, Title: {title}". Consider categories and subcategories when making your judgment.
+7. Each news article is provided in the format: "Category: {{category}}, Subcategory: {{subcategory}}, Title: {{title}}". Consider categories and subcategories when making your judgment.
 
 You must follow this output format: 
 Reason: <your reason example>
