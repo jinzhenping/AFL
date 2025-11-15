@@ -27,6 +27,9 @@ correct = 0
 mrr_sum = 0.0
 ndcg5_sum = 0.0
 invalid_users = 0
+
+# Global model cache per process (for multiprocessing optimization)
+_process_model_cache = None
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_dir', type=str, default='')
@@ -51,9 +54,31 @@ def get_args():
     return parser.parse_args()
 
 def recommend(data, args):
+    global _process_model_cache
+    
     start_time = time.time()
     rec_agent = RecAgent(args,'prior_rec')
-    user_agent = UserModelAgent(args,'prior_rec')
+    
+    # Reuse model if available in this process (for multiprocessing optimization)
+    # Each process loads the model once and reuses it for all users in that process
+    if _process_model_cache is None:
+        user_agent = UserModelAgent(args,'prior_rec')
+        _process_model_cache = user_agent
+        print(f"[INFO] Model loaded in process {os.getpid()}")
+    else:
+        # Reuse cached model but create new agent instance for memory isolation
+        # Create a new agent but skip the expensive model loading
+        user_agent = UserModelAgent.__new__(UserModelAgent)  # Create instance without calling __init__
+        user_agent.memory = []
+        user_agent.info_list = []
+        user_agent.args = args
+        user_agent.mode = 'prior_rec'
+        user_agent.device = _process_model_cache.device
+        user_agent.load_prompt()  # Still need prompts
+        # Reuse cached model and mappings
+        user_agent.model = _process_model_cache.model
+        user_agent.id2name = _process_model_cache.id2name
+        user_agent.name2id = _process_model_cache.name2id
     flag = False
     epoch = 1
     rec_item = None
@@ -381,6 +406,13 @@ def main(args):
     print("Waiting for all tasks to complete...")
     pool.join()
     print("All tasks completed!")
+    
+    # Clear model cache after all processes finish
+    # Note: Each process has its own memory space, so when a process terminates,
+    # its memory (including the cached model) is automatically freed by the OS.
+    # This is just for clarity and to help with garbage collection in the main process.
+    global _process_model_cache
+    _process_model_cache = None
     
     # Print final metrics
     valid_users = total - invalid_users
