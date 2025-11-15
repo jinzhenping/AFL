@@ -26,6 +26,7 @@ total = 0
 correct = 0
 mrr_sum = 0.0
 ndcg5_sum = 0.0
+invalid_users = 0
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_dir', type=str, default='')
@@ -56,7 +57,9 @@ def recommend(data, args):
     flag = False
     epoch = 1
     rec_item = None
+    rec_ranking = None
     new_data_list = []
+    is_invalid_user = False
     while flag == False and epoch <= args.max_epoch:
         #rec agent
         retry_count = 0
@@ -68,7 +71,11 @@ def recommend(data, args):
                 print(f"[WARNING] RecAgent API returned None for data id {data['id']}, retry {retry_count}/{max_retries}")
                 if retry_count >= max_retries:
                     print(f"[ERROR] RecAgent failed after {max_retries} retries for data id {data['id']}")
-                    return new_data_list, 0, 0.0, 0.0, args
+                    is_invalid_user = True
+                    # Add minimal data for tracking invalid user
+                    if len(new_data_list) == 0:
+                        new_data_list.append({'id': data['id'], 'invalid': True, 'reason': 'recagent_failed'})
+                    return new_data_list, 0, 0.0, 0.0, args, is_invalid_user
                 continue
             print(f"\n[RecAgent Response - Epoch {epoch}, User {data['id']}]")
             print(f"{rec_agent_response}")
@@ -110,7 +117,11 @@ def recommend(data, args):
                     retry_count += 1
                     if retry_count >= max_retries:
                         print(f"[ERROR] Groundtruth not found in ranking after {max_retries} retries. Marking user as invalid.")
-                        return new_data_list, 0, 0.0, 0.0, args
+                        is_invalid_user = True
+                        # Add minimal data for tracking invalid user
+                        if len(new_data_list) == 0:
+                            new_data_list.append({'id': data['id'], 'invalid': True, 'reason': 'groundtruth_not_in_ranking'})
+                        return new_data_list, 0, 0.0, 0.0, args, is_invalid_user
                     continue
                 
                 # Ensure we have exactly the right number of items
@@ -125,12 +136,20 @@ def recommend(data, args):
                     retry_count += 1
                     if retry_count >= max_retries:
                         print(f"[ERROR] Could not create valid ranking after {max_retries} retries")
-                        return new_data_list, 0, 0.0, 0.0, args
+                        is_invalid_user = True
+                        # Add minimal data for tracking invalid user
+                        if len(new_data_list) == 0:
+                            new_data_list.append({'id': data['id'], 'invalid': True, 'reason': 'invalid_ranking'})
+                        return new_data_list, 0, 0.0, 0.0, args, is_invalid_user
                     continue
             retry_count += 1
             if retry_count >= max_retries:
                 print(f"[ERROR] Failed to parse rec_item after {max_retries} retries for data id {data['id']}")
-                return new_data_list, 0, 0.0, 0.0, args
+                is_invalid_user = True
+                # Add minimal data for tracking invalid user
+                if len(new_data_list) == 0:
+                    new_data_list.append({'id': data['id'], 'invalid': True, 'reason': 'parse_failed'})
+                return new_data_list, 0, 0.0, 0.0, args, is_invalid_user
         if args.max_epoch == 1:
             new_data = {'id':data['id'],'seq_name':data['seq_name'], 'cans_name':data['cans_name'], 'correct_answer':data['correct_answer'], 'epoch':epoch, 'rec_res':rec_agent_response, 'user_res':None,'prior_answer':data['prior_answer'], 'rec_ranking':rec_ranking}
             new_data_list.append(new_data)
@@ -227,7 +246,7 @@ def recommend(data, args):
     else:
         ndcg5 = 0.0
     
-    return new_data_list, hit_at_1, mrr, ndcg5, args
+    return new_data_list, hit_at_1, mrr, ndcg5, args, is_invalid_user
 
 def setcallback(x):
     global finish_num
@@ -235,22 +254,43 @@ def setcallback(x):
     global correct
     global mrr_sum
     global ndcg5_sum
+    global invalid_users
 
-    data_list, hit_at_1, mrr, ndcg5, args = x
-    for data in data_list:
-        append_jsonl(args.output_file, data)
+    if len(x) == 6:
+        data_list, hit_at_1, mrr, ndcg5, args, is_invalid_user = x
+    else:
+        # Backward compatibility
+        data_list, hit_at_1, mrr, ndcg5, args = x
+        is_invalid_user = False
+    
+    if is_invalid_user:
+        invalid_users += 1
+        user_id = "unknown"
+        reason = "unknown"
+        if len(data_list) > 0:
+            if 'id' in data_list[0]:
+                user_id = data_list[0]['id']
+            if 'reason' in data_list[0]:
+                reason = data_list[0]['reason']
+        print(f"[INVALID USER] User {user_id} marked as invalid (reason: {reason})")
+    else:
+        for data in data_list:
+            append_jsonl(args.output_file, data)
+    
     finish_num += 1
     correct += hit_at_1
     mrr_sum += mrr
     ndcg5_sum += ndcg5
     
+    valid_users = finish_num - invalid_users
     print("==============")
-    print(f"current Hit@1 = {correct} / {finish_num} = {correct/finish_num:.4f}")
-    print(f"current MRR = {mrr_sum} / {finish_num} = {mrr_sum/finish_num:.4f}")
-    print(f"current nDCG@5 = {ndcg5_sum} / {finish_num} = {ndcg5_sum/finish_num:.4f}")
-    print(f"global Hit@1 = {correct} / {total} = {correct/total:.4f}")
-    print(f"global MRR = {mrr_sum} / {total} = {mrr_sum/total:.4f}")
-    print(f"global nDCG@5 = {ndcg5_sum} / {total} = {ndcg5_sum/total:.4f}")
+    print(f"current Hit@1 = {correct} / {valid_users} = {correct/valid_users:.4f if valid_users > 0 else 0:.4f}")
+    print(f"current MRR = {mrr_sum} / {valid_users} = {mrr_sum/valid_users:.4f if valid_users > 0 else 0:.4f}")
+    print(f"current nDCG@5 = {ndcg5_sum} / {valid_users} = {ndcg5_sum/valid_users:.4f if valid_users > 0 else 0:.4f}")
+    print(f"global Hit@1 = {correct} / {total} = {correct/total:.4f if total > 0 else 0:.4f}")
+    print(f"global MRR = {mrr_sum} / {total} = {mrr_sum/total:.4f if total > 0 else 0:.4f}")
+    print(f"global nDCG@5 = {ndcg5_sum} / {total} = {ndcg5_sum/total:.4f if total > 0 else 0:.4f}")
+    print(f"Invalid users: {invalid_users} / {finish_num}")
     print("==============")
 
 def main(args):
@@ -343,13 +383,16 @@ def main(args):
     print("All tasks completed!")
     
     # Print final metrics
+    valid_users = total - invalid_users
     print("\n" + "="*50)
     print("FINAL EVALUATION RESULTS")
     print("="*50)
     print(f"Total samples: {total}")
-    print(f"Hit@1: {correct} / {total} = {correct/total:.4f}")
-    print(f"MRR: {mrr_sum} / {total} = {mrr_sum/total:.4f}")
-    print(f"nDCG@5: {ndcg5_sum} / {total} = {ndcg5_sum/total:.4f}")
+    print(f"Valid users: {valid_users}")
+    print(f"Invalid users: {invalid_users}")
+    print(f"Hit@1: {correct} / {valid_users} = {correct/valid_users:.4f if valid_users > 0 else 0:.4f}")
+    print(f"MRR: {mrr_sum} / {valid_users} = {mrr_sum/valid_users:.4f if valid_users > 0 else 0:.4f}")
+    print(f"nDCG@5: {ndcg5_sum} / {valid_users} = {ndcg5_sum/valid_users:.4f if valid_users > 0 else 0:.4f}")
     print("="*50)
 
 if __name__ == '__main__':
