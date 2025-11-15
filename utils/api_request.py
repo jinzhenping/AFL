@@ -27,6 +27,10 @@ def gpt_api(system_prompt, user_prompt, args):
         "messages": messages,
         "temperature": args.temperature,
     }
+    
+    # Add small delay before each request to avoid rate limits
+    time.sleep(0.1)  # 100ms delay between requests
+    
     while max_retry_num >= 0:
         request_result = None
         try:
@@ -39,9 +43,25 @@ def gpt_api(system_prompt, user_prompt, args):
                 error_msg = result_json.get('error', {}).get('message', 'Unknown error')
                 error_type = result_json.get('error', {}).get('type', 'Unknown')
                 print(f"[API ERROR] {error_type}: {error_msg}")
-                max_retry_num -= 1
-                if max_retry_num >= 0:
-                    time.sleep(2)
+                
+                # Check for rate limit error
+                if 'rate limit' in error_msg.lower() or 'tpm' in error_msg.lower() or 'rpm' in error_msg.lower():
+                    # Extract wait time from error message if available
+                    wait_time = 2
+                    if 'try again in' in error_msg.lower():
+                        try:
+                            import re
+                            wait_match = re.search(r'try again in ([\d.]+)s', error_msg.lower())
+                            if wait_match:
+                                wait_time = float(wait_match.group(1)) + 1  # Add 1 second buffer
+                        except:
+                            pass
+                    print(f"[API RATE LIMIT] Waiting {wait_time:.1f} seconds before retry...")
+                    time.sleep(wait_time)
+                else:
+                    max_retry_num -= 1
+                    if max_retry_num >= 0:
+                        time.sleep(2)
         except requests.exceptions.Timeout:
             print(f"[API WARNING] Request timeout, retries left: {max_retry_num}")
             max_retry_num -= 1
