@@ -53,9 +53,13 @@ class MindDataset(data.Dataset):
                 neg_str = self.int2news_id.get(neg_int, '')
                 if neg_str:
                     candidates_str.append(neg_str)
-            random.shuffle(candidates_int)
-            # Shuffle string candidates in same order
-            candidates_str = [self.int2news_id.get(cid, '') for cid in candidates_int if cid in self.int2news_id]
+        
+        # Always shuffle candidates to randomize order (maintain correspondence between int and str IDs)
+        combined = list(zip(candidates_int, candidates_str))
+        random.shuffle(combined)
+        candidates_int, candidates_str = zip(*combined)
+        candidates_int = list(candidates_int)
+        candidates_str = list(candidates_str)
         
         # Convert to names for display
         seq_title = [self.item_id2name.get(item, item) for item in seq_unpad_str if item in self.item_id2name]
