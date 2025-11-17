@@ -51,6 +51,7 @@ def get_args():
     parser.add_argument("--save_user_dir", type=str, default=None)
     parser.add_argument("--gpu", type=int, default=None, help='GPU device ID to use (e.g., 0 or 1). If not specified, uses CUDA_VISIBLE_DEVICES or default cuda device.')
     parser.add_argument("--max_users", type=int, default=None, help='Maximum number of users to evaluate. If not specified, evaluates all users in the dataset.')
+    parser.add_argument("--max_seq_len", type=int, default=None, help='Maximum sequence length to provide to LLM. If not specified, provides all history. Use this to limit the number of news articles in the prompt.')
     return parser.parse_args()
 
 def recommend(data, args):
@@ -456,7 +457,7 @@ def main(args):
     if 'lastfm' in args.data_dir:
         dataset = LastfmDataset(args.data_dir, args.stage, args.cans_num, args.sep, True)
     elif 'mind' in args.data_dir.lower():
-        dataset = MindDataset(args.data_dir, args.stage, args.cans_num, args.sep, True)
+        dataset = MindDataset(args.data_dir, args.stage, args.cans_num, args.sep, True, max_seq_len=args.max_seq_len)
     else:
         raise ValueError(f"Unsupported dataset: {args.data_dir}")
     global total

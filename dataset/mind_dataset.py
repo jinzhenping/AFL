@@ -5,13 +5,14 @@ import pandas as pd
 import random
 
 class MindDataset(data.Dataset):
-    def __init__(self, data_dir=r'./mind', stage='test', cans_num=5, sep=", ", no_augment=True):
+    def __init__(self, data_dir=r'./mind', stage='test', cans_num=5, sep=", ", no_augment=True, max_seq_len=None):
         self.data_dir = data_dir
         self.cans_num = cans_num
         self.stage = stage
         self.sep = sep
         self.aug = (stage=='train') and not no_augment
         self.padding_item_id = 0  # MIND uses 0 as padding or we can use a special token
+        self.max_seq_len = max_seq_len  # Maximum sequence length for LLM prompt (None = no limit)
         self.check_files()
     
     def __len__(self):
@@ -66,6 +67,11 @@ class MindDataset(data.Dataset):
         cans_name = [self.item_id2name.get(can, can) for can in candidates_str if can in self.item_id2name]
         next_item_name = self.item_id2name.get(next_item_str, next_item_str)
         
+        # Limit sequence length for LLM prompt (use most recent N items)
+        if self.max_seq_len is not None and len(seq_title) > self.max_seq_len:
+            seq_title = seq_title[-self.max_seq_len:]  # Take most recent N items
+            seq_unpad_int = seq_unpad_int[-self.max_seq_len:]  # Also limit int sequence for consistency
+        
         # Format candidates with ID for LLM prompt (e.g., "N1: Category: ..., Subcategory: ..., Title: ...")
         cans_str_with_id = []
         for can_id, can_name in zip(candidates_str, cans_name):
@@ -78,7 +84,7 @@ class MindDataset(data.Dataset):
         sample = {
             'id': i,
             'seq': seq,  # Integer IDs for model
-            'seq_name': seq_title,  # Titles for display
+            'seq_name': seq_title,  # Titles for display (may be limited)
             'len_seq': len_seq,
             'seq_str': self.sep.join(seq_title),
             'cans': candidates_int,  # Integer IDs for model
