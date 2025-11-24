@@ -86,7 +86,8 @@ def generate_prior_recommendations(args):
     print("Model loaded successfully")
     
     # Get id2name mapping from dataset
-    id2name = dataset.item_id2name
+    id2name = dataset.item_id2name  # Maps string ID (e.g., "N1") to formatted name
+    int2news_id = dataset.int2news_id  # Maps integer ID to string ID (e.g., "N1")
     
     # Generate recommendations
     print("Generating recommendations...")
@@ -125,15 +126,26 @@ def generate_prior_recommendations(args):
             
             # Get top-1 recommendation
             values, topK = prediction.topk(1, dim=1, largest=True, sorted=True)
-            recommended_id = int(topK.numpy()[0][0])
+            recommended_id_int = int(topK.numpy()[0][0])  # Integer ID from model
             
-            # Convert ID to name
-            if recommended_id in id2name:
-                recommended_name = id2name[recommended_id]
-            else:
-                # Fallback: use first candidate name
-                if candidates and candidates[0] in id2name:
-                    recommended_name = id2name[candidates[0]]
+            # Helper function to convert integer ID to name
+            def int_id_to_name(int_id):
+                """Convert integer ID to formatted name string"""
+                if int_id in int2news_id:
+                    news_id_str = int2news_id[int_id]
+                    if news_id_str in id2name:
+                        return id2name[news_id_str]
+                return None
+            
+            # Convert integer ID to string ID, then to name
+            recommended_name = int_id_to_name(recommended_id_int)
+            
+            # Fallback: use first candidate name if recommended_id not found
+            if recommended_name is None:
+                if candidates and len(candidates) > 0:
+                    recommended_name = int_id_to_name(candidates[0])
+                    if recommended_name is None:
+                        recommended_name = "Unknown"
                 else:
                     recommended_name = "Unknown"
             
