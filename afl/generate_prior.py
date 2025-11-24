@@ -143,6 +143,45 @@ def generate_prior_recommendations(args):
                 'real': correct_answer
             })
     
+    # Calculate accuracy metrics
+    print("\n" + "="*80)
+    print("PRIOR RECOMMENDATION ACCURACY METRICS")
+    print("="*80)
+    
+    total = len(results)
+    correct = 0
+    
+    # Hit@1: Exact match between generate and real
+    for result in results:
+        generate = result['generate'].lower().strip()
+        real = result['real'].lower().strip()
+        if generate == real:
+            correct += 1
+    
+    hit_at_1 = correct / total if total > 0 else 0.0
+    
+    print(f"Total samples: {total}")
+    print(f"Hit@1 (Exact Match): {correct} / {total} = {hit_at_1:.4f} ({hit_at_1*100:.2f}%)")
+    
+    # Additional: Check for partial matches (if titles contain similar keywords)
+    # This is optional and can be useful for understanding near-misses
+    partial_matches = 0
+    for result in results:
+        generate = result['generate'].lower().strip()
+        real = result['real'].lower().strip()
+        if generate != real:
+            # Check if they share significant words (more than 50% of words match)
+            generate_words = set(generate.split())
+            real_words = set(real.split())
+            if len(generate_words) > 0 and len(real_words) > 0:
+                common_words = generate_words.intersection(real_words)
+                similarity = len(common_words) / max(len(generate_words), len(real_words))
+                if similarity > 0.5:  # More than 50% word overlap
+                    partial_matches += 1
+    
+    print(f"Partial matches (>50% word overlap): {partial_matches} / {total - correct} (excluding exact matches)")
+    print("="*80 + "\n")
+    
     # Save to CSV
     print(f"Saving results to {args.output_file}...")
     os.makedirs(os.path.dirname(args.output_file), exist_ok=True)
